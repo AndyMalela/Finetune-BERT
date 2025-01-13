@@ -1,0 +1,56 @@
+Architecture
+
+BERT is built on the Transformer encoder architecture and consists of:
+
+    Input embeddings: Combines word embeddings, positional embeddings, and segment embeddings to represent input tokens.
+    Multi-head self-attention: Captures relationships between tokens, even if they are far apart in the text.
+    Feedforward neural networks: Processes the information extracted by the attention mechanism.
+    Output layers: Produces representations of tokens and sentences for downstream tasks.
+
+Pre-training
+
+BERT is pre-trained on large text corpora (e.g., Wikipedia and BooksCorpus) using two unsupervised tasks:
+
+    Masked Language Modeling (MLM): Randomly masks 15% of tokens in the input and trains the model to predict them based on the context.
+    Next Sentence Prediction (NSP): Predicts whether one sentence follows another in the text, helping BERT understand relationships between sentences.
+
+Fine-tuning
+
+Once pre-trained, BERT can be fine-tuned on specific tasks by adding a task-specific output layer and training the model on labeled data. For text classification, this output layer is typically a dense layer with softmax activation for multi-class classification.
+3. Why BERT for Your Task
+
+Explain why you chose BERT for this task:
+
+BERT is particularly well-suited for the task of classifying scientific abstracts into fields because:
+
+    Contextual Understanding: Its bidirectional nature allows BERT to understand the meaning of terms in the context of scientific language, even when technical terms or ambiguous phrases are present.
+    Pre-training Benefits: BERT’s pre-training on large corpora equips it with general linguistic knowledge, which can be fine-tuned for domain-specific tasks.
+    State-of-the-Art Performance: BERT consistently achieves high accuracy on text classification tasks by leveraging its robust representations of textual data.
+
+How BERT Functions in Your Task
+
+Explain the step-by-step process of how BERT was applied to your classification task:
+
+    Preprocessing:
+        The 900 abstracts were tokenized using BERT’s tokenizer, which splits text into subword tokens and adds special tokens [CLS] and [SEP] for classification tasks.
+        Text was padded and truncated to a fixed length for efficient processing.
+
+    Model Setup:
+        The pre-trained BERT base model (bert-base-uncased) was used as the backbone.
+        A task-specific dense layer was added on top of BERT for predicting the three scientific fields.
+
+    Fine-tuning:
+        The model was fine-tuned on the labeled dataset, optimizing the cross-entropy loss for multi-class classification.
+        A small learning rate (1e-5 to 5e-5) was used with the AdamW optimizer to adjust BERT’s weights.
+
+    Evaluation:
+        Performance was evaluated on a validation set using metrics such as accuracy, F1-score, precision, and recall to measure the effectiveness of the model.
+
+
+Unnecessary for BERT:
+1.	Lowercasing: BERT models come in two variants: cased and uncased. If using a cased BERT, retaining capitalization is essential as it contributes to contextual understanding. Traditional models like FNN often require lowercasing to reduce the vocabulary size.
+2.	Stopword Removal: Stopwords (e.g., "is," "the," "and") provide context in BERT's embeddings and should not be removed. FNNs often require stopword removal to reduce input size and focus on "important" words, but this isn't needed for BERT.
+3.	Tokenization: BERT has its own tokenizer (WordPiece or SentencePiece) that handles subword tokenization and splitting. Traditional FNNs often require manual tokenization like splitting on whitespace or punctuation.
+4.	TF-IDF or Bag-of-Words Representations: BERT generates dynamic contextual embeddings directly from raw text, eliminating the need for fixed representations like TF-IDF or bag-of-words used in FNNs.
+5.	Padding or Truncation: While BERT requires fixed-length input, padding and truncation are handled automatically in many frameworks (e.g., Hugging Face Transformers). In contrast, FNNs often need explicit padding to ensure all inputs are the same size.
+6.	Lemmatization or Stemming: BERT understands the relationship between words in their inflected forms due to contextual embeddings, making lemmatization and stemming unnecessary. FNNs may need these steps to reduce vocabulary size and simplify inputs.
