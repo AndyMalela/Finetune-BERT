@@ -10,12 +10,10 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Step 1: Load Dataset
+# Dataset loading
 data = pd.read_csv('psycho-polsci-astro.csv') # Loads the abstracts dataset using pandas read_csv
 texts = data['abstract'].tolist()  # Puts all the abstracts in the csv into the list "text"
 labels = data['label'].tolist()  # Puts all the labels in the csv into the list "labels"
-
-# Convert string labels to numeric labels
 label_map = {label: idx for idx, label in enumerate(set(labels))} # Creates a dictionary that maps each label (Psychology, Political Science, Sociology) to a unique index (0, 1, 2)
 numeric_labels = [label_map[label] for label in labels]
 
