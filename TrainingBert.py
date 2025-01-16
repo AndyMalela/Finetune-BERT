@@ -1,83 +1,109 @@
-import pandas as pd
-from sklearn.model_selection import StratifiedKFold
+# === Imports ===
 from transformers import BertTokenizer, BertForSequenceClassification
-from torch.optim import AdamW
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-import torch
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix
-from torch.utils.data import DataLoader, Dataset
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
+#BertForSequenceClassification = pretrained BERT model for text classification tasks with a classification head added in its architecture
+#BertTokenizer = tokenizer that processes raw text to tokens, an input format that BERT can understand
 
-# Dataset loading
-data = pd.read_csv('psycho-polsci-astro.csv') # Loads the abstracts dataset using pandas read_csv
-texts = data['abstract'].tolist()  # Puts all the abstracts in the csv into the list "text"
-labels = data['label'].tolist()  # Puts all the labels in the csv into the list "labels"
-label_map = {label: idx for idx, label in enumerate(set(labels))} # Creates a dictionary that maps each label (Psychology, Political Science, Sociology) to a unique index (0, 1, 2)
-numeric_labels = [label_map[label] for label in labels]
+import torch #the machine learning framework used (pytorch)
+from torch.utils.data import DataLoader, Dataset#tools for dataset handling and batching
+from torch.optim import AdamW 
+#adam is an algorithm for optimization in gradient decent. it uses gradient decent with momentum and RMSP (Root Mean Square Propogation) algorithms 
+#gradient descent with momentum removes sudden changes in parameter values, smoothing it and fastens training
+#RMSP adapts the learning rate for each parameter based on previous gradients
 
-# Step 2: Load Tokenizer
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+from torch.optim.lr_scheduler import ReduceLROnPlateau #learning rate scheduler
 
-# Step 3: Create a PyTorch Dataset Class
+from sklearn.model_selection import StratifiedKFold
+#library for making stratified k-cross validation, stratifying the fold ensures that proportion of the class labels in each split dataset is consistent with their proportion in the original dataset
+#1/3 psychology labels, 1/3 sociology labels, and 1/3 political science labels proportion distribution
+
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix #the evaluation metrics used to measure performance
+import pandas as pd s#library for data manipulation and analysis
+import numpy as np #library for numerical operations in python
+import matplotlib.pyplot as plt #library for general-purpose plotting
+import seaborn as sns #visualization library for statistical plots, used for creating heatmap visualization part of the confusion matrix
+
+# === Dataset loading ===
+data = pd.read_csv('psycho-polsci-astro.csv') #loads the abstracts dataset to a pandas dataframe, which organizes the data into rows and columns. the columns are based on the csv which are "abstract" and "labels" columns
+texts = data['abstract'].tolist()  #extracts "abstract" column from the dataframe and converts it into a entry list storing them in the variable "texts"
+labels = data['label'].tolist()  #extracts "labels" column from the dataframe and converts it into a entry list storing them in the variable "labels"
+
+# === String labels to numeric labels ===
+label_map = {label: idx for idx, label in enumerate(set(labels))} #creates a dictionary that maps each label (Psychology, Political Science, Sociology) to a unique index (0, 1, 2)
+numeric_labels = [label_map[label] for label in labels] #converts all labels in "labels" to to its numeric counterpart in "label_map", putting it in "numeric_labels" list
+
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased') #initializes a tokenizer from a pretrained BERT model
+
+# === PyTorch dataset class ===
 class AbstractDataset(Dataset):
-    def __init__(self, texts, labels, tokenizer, max_len):
-        self.texts = texts
-        self.labels = labels
-        self.tokenizer = tokenizer
-        self.max_len = max_len
+    """this custom dataset class prepares the data and structures it for model training and evaluation"""
+    
+    def __init__(self, texts, labels, tokenizer, max_len): #init function, with parameters below:
+        self.texts = texts #array of input texts
+        self.labels = labels #array of numbers as label of texts
+        self.tokenizer = tokenizer #tokenizer for converting text to tokens
+        self.max_len = max_len #the set maximum inout sequence length of tokens 
 
     def __len__(self):
-        return len(self.texts)
+        return len(self.texts) #this method returns number of samples in the dataset aka length of the dataset
 
-    def __getitem__(self, idx):
-        text = self.texts[idx]
-        label = self.labels[idx]
+    def __getitem__(self, idx): #this method retrieves a specific text and its corresponding label, tokenizes the text and makes the sequence lengths consistent through padding and truncation for model input
+        text = self.texts[idx] #fetches the text at the given index
+        label = self.labels[idx] #fetches the corresponding label at the given index
 
         encoding = self.tokenizer(
-            text,
-            max_length=self.max_len,
-            padding='max_length',
-            truncation=True,
-            return_tensors="pt",
+            text, #input text
+            max_length=self.max_len, #defines maximum length of text that is tokenzized
+            padding='max_length', #padding makes sure that all texts that are inputted are the same length regardless of actual abstract text length
+            truncation=True, #truncates texts if it is too long
+            return_tensors="pt", #return format of tokenized text are tensors in PyTorch format
         )
 
-        return {
-            'input_ids': encoding['input_ids'].squeeze(0),
-            'attention_mask': encoding['attention_mask'].squeeze(0),
-            'labels': torch.tensor(label, dtype=torch.long)
+        return { #returns tokenized text and the corresponding label as tensors (the models and loss functions expect inputs to be all tensors)
+            'input_ids': encoding['input_ids'].squeeze(0),  #returns token IDs as a tensor
+            'attention_mask': encoding['attention_mask'].squeeze(0),  #returns attention mask as a tensor, attention masks indicates which tokens in the input sequence are actual tokens (1) and which are padding tokens (0)
+            'labels': torch.tensor(label, dtype=torch.long)  #converts the label into a PyTorch tensor before
         }
 
-# Custom function for plotting the confusion matrix
+# === Confusion Matrix ===
 def plot_confusion_matrix(cm, classes, title, filename):
-    plt.figure(figsize=(10, 8))
-    cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]  # Normalize confusion matrix
-    sns.heatmap(cm_normalized, annot=True, fmt='.2f', cmap='Blues', xticklabels=classes, yticklabels=classes)
-    plt.title(title)
-    plt.ylabel('True Labels')
-    plt.xlabel('Predicted Labels')
-    plt.tight_layout()
-    plt.savefig(filename)
-    plt.close()
+    """function for plotting the confusion matrix with matplotlib for basic plotting and seaborn for heatmap element"""
+    plt.figure(figsize=(10, 8))  #the size of the plot
+    cm_normalized = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]  #normalize confusion matrix values by row totals
+    sns.heatmap(cm_normalized, annot=True, fmt='.2f', cmap='Blues', xticklabels=classes, yticklabels=classes)  #generate the heatmap with seaborne
+    #cm_normalized: normalized confusion matrix used to generate the heatmap
+    #annot=True: enables annotations, each cell in the heatmap will display a value
+    #fmt='.2f': annotation values are floats with 2 decimal places
+    #cmap='Blues': heatmap color is shades of blue
+    #xticklabels=classes, yticklabels=classes: sets labeling of x and y axis
+    
+    plt.title(title)  #a title to the plot
+    plt.ylabel('True Labels')  #label the y-axis
+    plt.xlabel('Predicted Labels')  #label the x-axis
+    plt.tight_layout()  #adjusts layout to prevent overlapping elements
+    plt.savefig(filename)  #saves the confusion matrix as an image file
+    plt.close()  #close the plot to free memory
 
-# Step 4: K-Fold Cross-Validation
-k_folds = 5
-skf = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=42)
+# === K-Fold Cross-Validation Setup ===
+k_folds = 5 #the amount of folds for K-Fold cross-validation
 
-fold_results = []
-aggregate_cm = np.zeros((len(label_map), len(label_map)))  # To store the summed confusion matrix
+skf = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=42) 
+#initiates stratified K-fold cross-validation, dataset is split into 5 sub datasets
+#shuffles the data to ensure randomness and avoid bias due to the order of the dataset
+#random_state=42 is the fixed seed for the random number generator, ensuring that the shuffling and splitting of dataset are the same across multiple runs
 
-# Hyperparameters
-batch_size = 8
-epochs = 50
-max_len = 128
-early_stopping_patience = 3
-scheduler_patience = 2
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+fold_results = [] #empty list to store performance metrics at the result for each fold
+aggregate_cm = np.zeros((len(label_map), len(label_map)))  #initialize a zero matrix for the aggregated confusion matrices across folds
 
-# Start K-Fold Cross-Validation
-with open("metrics_logs_bert2.txt", "w") as log_file:  # Open log file for writing
+# === Hyperparameters ===
+batch_size = 8  #number of abstract text samples in a batch during training and validation, a batch is a subset of the dataset used to train the model in one forward and backward pass, the model processes this amount of text abstracts at a time during training or evaluation
+epochs = 50  #maximum number of epochs to train the model, if early stopper is implemented it will rarely reach a high number of epoch
+max_len = 512  #maximum sequence length for tokenization
+early_stopping_patience = 3  #number of epochs to wait for improvement before stopping training early
+scheduler_patience = 2  #number of epochs to wait before reducing the learning rate when loss value stagnates
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  #makes sure GPU is used if available for faster training and uses CPU otherwise
+
+# === Start K-Fold Cross-Validation ===
+with open("metrics_logs_bert2.txt", "w") as log_file:  #opens log file in writing mode to the variable log_file for writing performance metrics purposes
     for fold, (train_idx, val_idx) in enumerate(skf.split(texts, numeric_labels)):
         print(f"Fold {fold + 1}/{k_folds}")
         log_file.write(f"Fold {fold + 1}/{k_folds}\n")
@@ -112,7 +138,7 @@ with open("metrics_logs_bert2.txt", "w") as log_file:  # Open log file for writi
         for epoch in range(epochs):
             print(f"Epoch {epoch + 1}/{epochs}")
             log_file.write(f"  Epoch {epoch + 1}/{epochs}\n")
-
+            
             model.train()
             epoch_loss = 0
             for batch in train_loader:
@@ -148,7 +174,7 @@ with open("metrics_logs_bert2.txt", "w") as log_file:  # Open log file for writi
                     val_loss += loss.item()
 
                     logits = outputs.logits
-                    preds = torch.argmax(logits, dim=-1)
+                    preds = torch.argmax(logits, dim=-1) #
 
                     val_preds.extend(preds.cpu().numpy())
                     val_true.extend(labels.cpu().numpy())
