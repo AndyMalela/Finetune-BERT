@@ -1,6 +1,0 @@
-1. not having an early stopper for 3, 4, 5 epochs vs early stopper
-initially i did not  use an early stopper for simplicity but found that sociology often overfits while other fields are still learning
-i started with 5 epochs with recommendation from GPT, then noticed that loss is still going down so i went to 6, then to 4, then to 3
-2. fixed learning rate vs learning rate scheduler
-3. cased vs uncased BERT model
-4. BERT vs SciBERT

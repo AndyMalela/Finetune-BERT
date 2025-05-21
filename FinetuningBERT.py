@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, Dataset
 #DataLoader is a utility that complements Dataset. In this code it wraps train_dataset and val_dataset instances providing batching and optionally shuffled data during training and validation
 
 from torch.optim import AdamW 
-#adam is an algorithm for optimization in gradient decent. it uses gradient decent with momentum and RMSP (Root Mean Square Propogation) algorithms 
+#adamw is an algorithm for optimization in gradient decent. it uses gradient decent with momentum and RMSP (Root Mean Square Propogation) algorithms with weight decay.
 #gradient descent with momentum removes sudden changes in parameter values, smoothing it and fastens training
 #RMSP adapts the learning rate for each parameter based on previous gradients
 
@@ -25,7 +25,7 @@ from sklearn.model_selection import StratifiedKFold
 #1/3 psychology labels, 1/3 sociology labels, and 1/3 political science labels proportion distribution
 
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix #the evaluation metrics used to measure performance
-import pandas as pd s#library for data manipulation and analysis
+import pandas as pd #library for data manipulation and analysis
 import numpy as np #library for numerical operations in python
 import matplotlib.pyplot as plt #library for general-purpose plotting
 import seaborn as sns #visualization library for statistical plots, used for creating heatmap visualization part of the confusion matrix
@@ -38,7 +38,7 @@ torch.manual_seed(seed) #controls seed for operations by CPU for deterministic r
 torch.cuda.manual_seed_all(seed)  #controls seed for operations by PyTorch's CUDA GPU for deterministic results (if using GPU)
 
 # === Dataset loading ===
-data = pd.read_csv('psycho-polsci-astro.csv') #loads the abstracts dataset to a pandas dataframe, which organizes the data into rows and columns. the columns are based on the csv which are "abstract" and "labels" columns
+data = pd.read_csv('psycho-polsci-socio.csv') #loads the abstracts dataset to a pandas dataframe, which organizes the data into rows and columns. the columns are based on the csv which are "abstract" and "labels" columns
 texts = data['abstract'].tolist()  #extracts "abstract" column from the dataframe and converts it into a entry list storing them in the variable "texts"
 labels = data['label'].tolist()  #extracts "labels" column from the dataframe and converts it into a entry list storing them in the variable "labels"
 
@@ -46,7 +46,8 @@ labels = data['label'].tolist()  #extracts "labels" column from the dataframe an
 label_map = {label: idx for idx, label in enumerate(set(labels))} #creates a dictionary that maps each label (Psychology, Political Science, Sociology) to a unique index (0, 1, 2)
 numeric_labels = [label_map[label] for label in labels] #converts all labels in "labels" to to its numeric counterpart in "label_map", putting it in "numeric_labels" list
 
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased') #initializes a tokenizer from a pretrained BERT model, WordPiece tokenization algorithm is a part of here, this tokenizer ignores cased charaacters
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased') 
+#initializes a tokenizer from a pretrained BERT model, WordPiece tokenization algorithm is a part of here, this tokenizer ignores cased charaacters
 
 # === PyTorch dataset class ===
 class AbstractDataset(Dataset):
@@ -113,25 +114,25 @@ k_folds = 5 #the amount of folds for K-Fold cross-validation
 skf = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=seed) 
 #instantiates stratified K-fold cross-validation from StratifiedKFold library
 #shuffles the data to ensure randomness and avoid bias due to the order of the dataset
-#random_state=seed is the fixed seed for the random number generator, ensuring that the shuffling and splitting of dataset are the same across multiple runs
+#random_state=seed is the fixed seed for the random number generator, ensuring that the splitting of dataset are the same across multiple runs
 
 fold_results = [] #empty list to store performance metrics at the result for each fold
 aggregate_cm = np.zeros((len(label_map), len(label_map)))  #initialize a zero matrix for the aggregated confusion matrices across folds
 
 # === Hyperparameters ===
-batch_size = 8  
+batch_size = 16
 #number of abstract text samples in a batch during training and validation, a batch is a subset of 
 # the dataset used to train the model in one forward and backward pass, the model processes this amount of text abstracts at a time during training or evaluation
 
 epochs = 50  #maximum number of epochs to train the model, if early stopper is implemented it will rarely reach a high number of epoch
 max_len = 512  #maximum sequence length for tokenization
-early_stopping_patience = 3  #number of epochs to wait for improvement before stopping training early
+early_stopping_patience = 10  #number of epochs to wait for improvement before stopping training early
 scheduler_patience = 2  #number of epochs to wait before reducing the learning rate when loss value stagnates
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  #makes sure GPU is used if available for faster training and uses CPU otherwise
 
 
 # === Start K-Fold Cross-Validation ===
-with open("metrics_logs_bert2.txt", "w") as log_file:  #opens log file in writing mode to the variable log_file for writing performance metrics
+with open("metrics-earlystopping=10-lrscheduled-BERT-uncased-batch16.txt", "w") as log_file:  #opens log file in writing mode to the variable log_file for writing performance metrics
     for fold, (train_idx, val_idx) in enumerate(skf.split(texts, numeric_labels)):
         #loops over each fold generated by skf.split() to perform cross-validation the dataset is split into training (train_idx) 
         # and validation (val_idx) subsets which it then uses to train and evaluate/validate the model
@@ -164,16 +165,15 @@ with open("metrics_logs_bert2.txt", "w") as log_file:  #opens log file in writin
         model.to(device)  #moves the model to be computed on the GPU or CPU as available
 
         optimizer = AdamW(model.parameters(), lr=2e-5)  
-        #instantiates Adam optimizer for updating the parameters (weights and biases) during traning, extra detail of adam algorithm is in the import section
+        #instantiates Adam optimizer for updating the parameters (weights and biases) during traning, extra detail of adamw algorithm is in the import section
         #model.parameters() refers to all trainable parameters of the model, updatable by the optimizer
         #the optimizer is initialized with a learning rate of 2e-5
         
-        scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=scheduler_patience, factor=0.1, verbose=True)  
+        scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=scheduler_patience, factor=0.1)  
         #initializes learning rate scheduler "ReduceLROnPlateau", its job is to adjusts learning rate during training to improve model convergence
         #mode='min': min mode, scheduler reduces the learning rate if the monitored metric (metric being the loss, which are expected to when over training) stops decreasing. so if the loss stops decreasing, it triggers the scheduler to reduce the learning rate.
         #patience=scheduler_patience sets the number of epochs to wait after the metric stops improving before reducing the learning rate (according to scheduler_patience value set in hyperparameters)
         #factor=0.1 is the factor by which the learning rate is multiplied when it is reduce
-        #verbose=True ensures it prints message in terminal whenever the learning rate is reduced
 
         # Early Stopping Variables
         best_val_loss = float('inf')  
@@ -253,16 +253,16 @@ with open("metrics_logs_bert2.txt", "w") as log_file:  #opens log file in writin
             scheduler.step(average_val_loss)  
             #This adjusts the learning rate using the ReduceLROnPlateau learning rate scheduler based 
             # on the average validation loss when the validation loss fails to improve after a certain number of epochs set by "patience"
-            
+            print(scheduler.get_last_lr()) # prints most recent learning rate used by the optimizer
 
             print(f"Validation Loss after epoch {epoch + 1}: {average_val_loss}")  # Prints validation loss at currecnt epoch
-            log_file.write(f"    Validation Loss: {average_val_loss:.4f}\n")  # Log validation loss of current epoch to log_file
+            log_file.write(f"    Validation Loss: {average_val_loss:.4f}\n")  # Log validation loss of current epoch to log_file as 4 decimal floats
 
             # === Early Stopping Check ===
             if average_val_loss < best_val_loss:
                 best_val_loss = average_val_loss  # update the best validation loss if average_val_loss of current epoch is smaller then best_val_loss
                 patience_counter = 0  # reset the patience counter
-                torch.save(model.state_dict(), f'best_model_fold_{fold + 1}.pth')  #save the model checkpoint for this fold to keep trach of the best performing model
+                #torch.save(model.state_dict(), f'best_model_fold_{fold + 1}.pth')  #save the model checkpoint for this fold to keep trach of the best performing model #currently commented out for storage concern since we have a final saving anyway
             else:
                 patience_counter += 1  
                 # if average_val_loss is not smaller than best_val_loss then increment patience_counter, this allows the model to continue training 
@@ -290,7 +290,7 @@ with open("metrics_logs_bert2.txt", "w") as log_file:  #opens log file in writin
 
     # === Aggregate Confusion Matrix ===
     classes = list(label_map.keys())  #retrieve class names from the label mapping in the key portion of label_map dictionary
-    plot_confusion_matrix(aggregate_cm, classes, "Aggregate Confusion Matrix (Percentage)", "aggregate_confusion_matrix_bert2.jpeg")  
+    plot_confusion_matrix(aggregate_cm, classes, "Aggregate Confusion Matrix (Percentage)", "aggregate-confusion-metrics-earlystopping=10-lrscheduled-SciBERT-uncased-batch16.jpeg")  
     #calls the custom plot_confusion_matrix function to plot and save the confusion matrix.
 
     # === Calculate and Save Average Metrics ===
