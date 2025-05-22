@@ -9,6 +9,8 @@ File structure:
 
 ├── FinetuningBERT.py # Main training script
 
+├── FinetuningBERT-Report.py # Project report
+
 ├── psycho-polsci-socio.csv # Input data file
 
 ├── metrics-earlystopping=10-.txt # Logged training results
@@ -28,7 +30,7 @@ Implements:
 
 
 
-### 🚀 How to Run
+>  How to Run
 
 ```bash
 pip install transformers torch scikit-learn pandas seaborn matplotlib
