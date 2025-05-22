@@ -21,7 +21,7 @@ File structure:
 
 └── README.md # This file
 
-Model used is `bert-base-uncased` using Hugging Face's Transformers and PyTorch.
+Model used is `bert-base-uncased` with PyTorch framework.
 
 Implements:
 - Stratified K-Fold Cross-Validation
