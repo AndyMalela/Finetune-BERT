@@ -28,9 +28,7 @@ Implements:
 - Early Stopping with patience
 - Learning Rate Scheduler (`ReduceLROnPlateau`)
 
-
-
->  How to Run
+#### Running it
 
 ```bash
 pip install transformers torch scikit-learn pandas seaborn matplotlib
